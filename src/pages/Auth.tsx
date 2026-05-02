@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Activity, AlertCircle, Chrome } from 'lucide-react';
@@ -20,90 +13,57 @@ const AuthPage: React.FC = () => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleGoogleSignIn = async () => {
-    setError('');
-    setLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // Check if user exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
-      if (!userDoc.exists()) {
-        // If new user via Google, we need a role. 
-        // For simplicity in this demo, let's default to patient or ask via onboarding
-        await setDoc(doc(db, 'users', user.uid), {
-          id: user.uid,
-          name: user.displayName || 'Google User',
-          email: user.email || '',
-          role: 'patient', // Default role for social login
-          onboardingComplete: false,
-          sharingEnabled: true,
-        });
-        navigate('/onboarding');
-      } else {
-        const userData = userDoc.data();
-        if (userData.onboardingComplete) {
-          navigate(userData.role === 'patient' ? '/patient' : '/doctor');
-        } else {
-          navigate('/onboarding');
-        }
-      }
-    } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Google Sign-In is not enabled in Firebase Console. Please enable it in Authentication > Sign-in method.');
-      } else {
-        setError(err.message);
-      }
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleSignIn = () => {
+    setError('Social login is disabled in Demo Mode. Please use the demo accounts.');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    try {
+    setTimeout(() => {
       if (isLogin) {
-        const userCred = await signInWithEmailAndPassword(auth, email, password);
-        const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.onboardingComplete) {
-            navigate(userData.role === 'patient' ? '/patient' : '/doctor');
-          } else {
-            navigate('/onboarding');
-          }
+        if (email === 'patient@demo.com' && password === 'password123') {
+          const demoUser = { uid: 'demo-patient-uid', email: 'patient@demo.com' };
+          const demoProfile = {
+            id: 'demo-patient-uid',
+            name: 'Demo Patient',
+            email: 'patient@demo.com',
+            role: 'patient' as const,
+            onboardingComplete: true,
+            age: '30',
+            gender: 'Male',
+            bloodGroup: 'O+',
+            address: '123 Health St',
+            sharingEnabled: true
+          };
+          login(demoUser, demoProfile);
+          navigate('/patient');
+        } else if (email === 'doctor@demo.com' && password === 'password123') {
+          const demoUser = { uid: 'demo-doctor-uid', email: 'doctor@demo.com' };
+          const demoProfile = {
+            id: 'demo-doctor-uid',
+            name: 'Demo Doctor',
+            email: 'doctor@demo.com',
+            role: 'doctor' as const,
+            onboardingComplete: true,
+            degree: 'MD - Cardiology',
+            address: '456 Clinic Ave'
+          };
+          login(demoUser, demoProfile);
+          navigate('/doctor');
         } else {
-          navigate('/onboarding');
+          setError('Invalid demo credentials. Use patient@demo.com or doctor@demo.com (pass: password123)');
         }
       } else {
-        const userCred = await createUserWithEmailAndPassword(auth, email, password);
-        await setDoc(doc(db, 'users', userCred.user.uid), {
-          id: userCred.user.uid,
-          name,
-          email,
-          role,
-          onboardingComplete: false,
-          sharingEnabled: role === 'patient' ? true : false,
-        });
-        navigate('/onboarding');
+        setError('Sign up is disabled in Demo Mode. Please use the demo accounts.');
       }
-    } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Email/Password auth is not enabled in Firebase Console. Please enable it in Authentication > Sign-in method.');
-      } else {
-        setError(err.message);
-      }
-    } finally {
       setLoading(false);
-    }
+    }, 800);
   };
 
   return (
@@ -224,6 +184,25 @@ const AuthPage: React.FC = () => {
           >
             {loading ? 'Authenticating...' : isLogin ? 'Login' : 'Sign Up'}
           </button>
+
+          {isLogin && (
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => { setEmail('patient@demo.com'); setPassword('password123'); }}
+                className="py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider hover:bg-white hover:border-blue-300 hover:text-blue-600 transition-all"
+              >
+                Demo Patient
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('doctor@demo.com'); setPassword('password123'); }}
+                className="py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider hover:bg-white hover:border-blue-300 hover:text-blue-600 transition-all"
+              >
+                Demo Doctor
+              </button>
+            </div>
+          )}
 
           <div className="relative flex items-center justify-center py-2">
             <div className="flex-grow border-t border-slate-100"></div>

@@ -5,52 +5,48 @@ import { auth, db } from '../lib/firebase';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   profile: UserProfile | null;
   loading: boolean;
-  isAdmin?: boolean;
+  login: (userData: any, profileData: UserProfile | null) => void;
+  logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  profile: null, 
+  loading: true,
+  login: () => {},
+  logout: () => {}
+});
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any | null>(() => {
+    const saved = localStorage.getItem('demo_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [profile, setProfile] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('demo_profile');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      if (!firebaseUser) {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
+  const login = (userData: any, profileData: UserProfile | null) => {
+    setUser(userData);
+    setProfile(profileData);
+    localStorage.setItem('demo_user', JSON.stringify(userData));
+    if (profileData) localStorage.setItem('demo_profile', JSON.stringify(profileData));
+  };
 
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      // Listen to profile changes
-      const profileRef = doc(db, 'users', user.uid);
-      const unsubscribe = onSnapshot(profileRef, (docSnap) => {
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        } else {
-          setProfile(null);
-        }
-        setLoading(false);
-      }, (error) => {
-        console.error("Profile fetching error:", error);
-        setLoading(false);
-      });
-      return unsubscribe;
-    }
-  }, [user]);
+  const logout = () => {
+    setUser(null);
+    setProfile(null);
+    localStorage.removeItem('demo_user');
+    localStorage.removeItem('demo_profile');
+  };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

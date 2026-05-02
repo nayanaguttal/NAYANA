@@ -9,6 +9,25 @@ export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const storage = getStorage(app);
 
+// Critical Constraint: Test connection on boot
+import { doc, getDocFromServer } from 'firebase/firestore';
+
+async function testConnection() {
+  try {
+    // Attempt to fetch a non-existent doc to test connectivity
+    await getDocFromServer(doc(db, 'system', 'connection_test'));
+    console.log("Firebase connection successful");
+  } catch (error: any) {
+    if (error.message && error.message.includes('offline')) {
+      console.error("Firebase is offline. Check your network connection or configuration.");
+    } else {
+      console.warn("Firebase connection test warning:", error.message);
+    }
+  }
+}
+
+testConnection();
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',

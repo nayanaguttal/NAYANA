@@ -27,17 +27,15 @@ const HealthuChat: React.FC = () => {
     setLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const systemPrompt = `You are "Healthu", a helpful, empathetic, and knowledgeable healthcare assistant for the MedVault platform. 
-      Your goals are:
-      1. Provide accurate medical information and health tips.
-      2. Remind users that you are an AI and not a substitute for professional medical advice.
-      3. Help users understand their potential symptoms but avoid definitive diagnoses.
-      4. Be concise and friendly. Use simple language.
-      5. MedVault specific: You can mention that MedVault helps them carry their health records safely.
-      
-      Structure your response in short paragraphs or bullet points if needed.`;
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+        setMessages(prev => [...prev, { role: 'assistant', content: "I'm ready to help, but I need a Gemini API Key to function. Please add GEMINI_API_KEY to your Secrets/Environment variables." }]);
+        setLoading(false);
+        return;
+      }
 
+      const ai = new GoogleGenAI({ apiKey });
+      
       const history = messages.map(msg => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }]
@@ -50,16 +48,26 @@ const HealthuChat: React.FC = () => {
           { role: 'user', parts: [{ text: input }] }
         ],
         config: {
-          systemInstruction: systemPrompt,
+          systemInstruction: `You are "Healthu", a helpful, empathetic, and knowledgeable healthcare assistant for the MedVault platform. 
+          Your goals are:
+          1. Provide accurate medical information and health tips.
+          2. Remind users that you are an AI and not a substitute for professional medical advice.
+          3. Help users understand their potential symptoms but avoid definitive diagnoses.
+          4. Be concise and friendly. Use simple language.
+          5. MedVault specific: You can mention that MedVault helps them carry their health records safely.`,
           temperature: 0.7,
         }
       });
 
       const aiText = response.text || "I'm sorry, I couldn't process that. Please try again.";
       setMessages(prev => [...prev, { role: 'assistant', content: aiText }]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Gemini Error:", error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Oops, I encountered a temporary connection issue. Please check your internet or try again later." }]);
+      let errorMsg = "Oops, I encountered a temporary connection issue. Please check your internet or try again later.";
+      if (error.message && error.message.includes('API_KEY')) {
+        errorMsg = "Invalid API Key. Please check your GEMINI_API_KEY in the environment.";
+      }
+      setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setLoading(false);
     }

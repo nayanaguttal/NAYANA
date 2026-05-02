@@ -100,6 +100,18 @@ const DoctorDashboard: React.FC = () => {
         </p>
       </div>
 
+      {/* Doctor Daily Stats */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-1">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Patients Today</span>
+          <p className="text-2xl font-black text-slate-900">12</p>
+        </div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-1">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Consultations</span>
+          <p className="text-2xl font-black text-blue-600">08</p>
+        </div>
+      </div>
+
       {showScanner && (
         <QRScanner 
           onScanSuccess={handleScanSuccess}

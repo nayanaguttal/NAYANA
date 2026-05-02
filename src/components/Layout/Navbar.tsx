@@ -5,11 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 import { LogOut, ShieldPlus } from 'lucide-react';
 
 const Navbar: React.FC = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    await auth.signOut();
+  const handleLogout = () => {
+    logout();
     navigate('/auth');
   };
 
