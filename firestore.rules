@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function existingData() {
+      return resource.data;
+    }
+
+    function incomingData() {
+      return request.resource.data;
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow get: if isSignedIn(); // Needed for doctors to check profile/sharing status
+      allow list: if false; // No blanket listing of users
+      
+      allow create: if isOwner(userId) 
+        && incomingData().keys().hasAll(['id', 'name', 'email', 'role'])
+        && incomingData().id == userId
+        && incomingData().name is string && incomingData().name.size() <= 100
+        && incomingData().role in ['patient', 'doctor'];
+
+      allow update: if isOwner(userId)
+        && incomingData().id == userId
+        && incomingData().role == existingData().role // Role is immutable
+        && (
+          // Action: Complete Onboarding or Update Profile
+          incomingData().diff(existingData()).affectedKeys().hasAny(['onboardingComplete', 'name', 'age', 'gender', 'bloodGroup', 'address', 'degree', 'sharingEnabled'])
+        );
+    }
+
+    // --- Records Collection ---
+    match /records/{recordId} {
+      function canViewRecord(record) {
+        let isPatient = isOwner(record.patientId);
+        let patientDoc = get(/databases/$(database)/documents/users/$(record.patientId)).data;
+        let isShared = patientDoc.sharingEnabled == true;
+        let isDoctor = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+        return isPatient || (isDoctor && isShared);
+      }
+
+      allow get: if isSignedIn() && canViewRecord(existingData());
+      
+      allow list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        (get(/databases/$(database)/documents/users/$(resource.data.patientId)).data.sharingEnabled == true &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor')
+      );
+
+      allow create: if isSignedIn() 
+        && isOwner(incomingData().patientId)
+        && incomingData().type in ['prescription', 'report']
+        && incomingData().fileUrl is string && incomingData().fileUrl.size() <= 1000
+        && incomingData().createdAt == request.time;
+
+      allow delete: if isOwner(existingData().patientId);
+    }
+
+    // --- Reminders Collection ---
+    match /reminders/{reminderId} {
+      allow read, write: if isSignedIn() && (
+        (request.method == 'list' && resource.data.userId == request.auth.uid) ||
+        (request.method == 'get' && resource.data.userId == request.auth.uid) ||
+        (request.method == 'create' && incomingData().userId == request.auth.uid) ||
+        (request.method == 'update' && existingData().userId == request.auth.uid && incomingData().userId == request.auth.uid) ||
+        (request.method == 'delete' && existingData().userId == request.auth.uid)
+      );
+    }
+  }
+}
